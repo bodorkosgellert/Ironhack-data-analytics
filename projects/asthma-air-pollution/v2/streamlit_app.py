@@ -71,6 +71,9 @@ def render_heatmap_from_json(matrix: dict) -> None:
 
 def main() -> None:
     st.set_page_config(page_title="Asthma × PM2.5 (v2)", layout="wide")
+    st.sidebar.caption(
+        "Dashboard build: 2026.07.15.2 · corrected interactive scatter plot"
+    )
     st.title("Asthma prevalence vs PM2.5 — Alabama counties (v2)")
     st.caption(
         "County-level CDC PLACES + Open-Meteo annual PM2.5. "
