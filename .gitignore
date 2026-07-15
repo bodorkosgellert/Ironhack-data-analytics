@@ -13,6 +13,7 @@ archive/bootcamp-original/real_estate_prices.ipynb
 
 # v2 generated artifacts (reproducible from scripts)
 projects/asthma-air-pollution/v2/outputs/*.csv
+!projects/asthma-air-pollution/v2/outputs/alabama_counties_full.csv
 !projects/asthma-air-pollution/v2/outputs/metrics.json
 !projects/asthma-air-pollution/v2/outputs/multivariate_metrics.json
 !projects/asthma-air-pollution/v2/outputs/robustness_report.json
