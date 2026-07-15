@@ -6,7 +6,7 @@ This repository brings together my Ironhack Data Analytics bootcamp work from 20
 
 | Area | Description |
 |---|---|
-| [`projects/asthma-air-pollution/`](projects/asthma-air-pollution/) | My capstone investigation of fine particulate matter and adult asthma prevalence, including the original analysis and a reproducible 2026 rebuild |
+| [`projects/asthma-air-pollution/`](projects/asthma-air-pollution/) | Fine particulate matter and adult asthma prevalence: [Live demo](https://ironhack-fk9xtt3fmoama8fdpvbzj.streamlit.app/) · [Source](projects/asthma-air-pollution/v2/) |
 | [`projects/local-llm-demo/`](projects/local-llm-demo/) | A planned local large language model and retrieval-augmented generation experiment |
 | [`learning/`](learning/) | Notes on my continuing technical education |
 | [`labs/`](labs/) | Selected classroom exercises in Python, Structured Query Language, natural language processing, and computer vision |
