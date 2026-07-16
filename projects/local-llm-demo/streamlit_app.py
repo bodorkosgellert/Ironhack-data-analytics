@@ -2,12 +2,20 @@
 
 from __future__ import annotations
 
+import os
+import sys
+from pathlib import Path
+
+# Streamlit Cloud CWD is the repo root. Ensure this package is importable even if
+# the runner does not put the script directory on sys.path.
+_DEMO_ROOT = Path(__file__).resolve().parent
+if str(_DEMO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_DEMO_ROOT))
+
 import streamlit as st
 
-from rag.assistant import EvidenceAssistant
-from rag.dense import dense_status, sentence_transformers_available
 from rag.hosted import hosted_status
-from rag.ollama import DEFAULT_MODEL, setup_instructions, status
+from rag.ollama import DEFAULT_MODEL, OllamaStatus, setup_instructions, status
 
 
 EXAMPLES = (
@@ -18,11 +26,31 @@ EXAMPLES = (
 )
 
 
+def _running_on_streamlit_cloud() -> bool:
+    """Detect Community Cloud so we never block on localhost Ollama."""
+    if os.environ.get("STREAMLIT_SHARING_MODE"):
+        return True
+    if os.environ.get("STREAMLIT_RUNTIME_ENV", "").lower() == "cloud":
+        return True
+    # Community Cloud mounts the repo here.
+    return Path("/mount/src").is_dir()
+
+
 def _streamlit_secrets() -> dict | None:
     try:
         return {key: st.secrets[key] for key in st.secrets}
     except Exception:
         return None
+
+
+def _ollama_status() -> OllamaStatus:
+    if _running_on_streamlit_cloud():
+        return OllamaStatus(
+            False,
+            error="Ollama is not used on Streamlit Community Cloud; retrieval-only or hosted chat applies.",
+        )
+    # Short timeout: Cloud/local hosts without Ollama should fail open quickly.
+    return status(timeout=0.8)
 
 
 @st.cache_resource
@@ -31,7 +59,10 @@ def get_assistant(
     retrieval_mode: str,
     lexical_weight: float,
     dense_weight: float,
-) -> EvidenceAssistant:
+):
+    # Lazy import keeps sklearn / corpus work off the critical path until a question is asked.
+    from rag.assistant import EvidenceAssistant
+
     return EvidenceAssistant(
         threshold=threshold,
         retrieval_mode=retrieval_mode,
@@ -43,6 +74,7 @@ def get_assistant(
 
 def main() -> None:
     st.set_page_config(page_title="Local cited evidence assistant", page_icon="📚", layout="wide")
+    # Paint chrome immediately before any optional status probes.
     st.title("Local cited evidence assistant")
     st.caption(
         "This assistant explains existing public aggregate results from the Alabama asthma project. "
@@ -50,8 +82,12 @@ def main() -> None:
         "This app is separate from the Version 2 epidemiology dashboard."
     )
 
-    ollama = status()
+    ollama = _ollama_status()
     hosted_ok, hosted_model = hosted_status(_streamlit_secrets())
+
+    # Dense status only checks importability; do not load MiniLM here.
+    from rag.dense import dense_status, sentence_transformers_available
+
     embeddings = dense_status()
 
     with st.sidebar:
@@ -62,6 +98,8 @@ def main() -> None:
                 st.caption("Installed models: " + ", ".join(ollama.models))
             else:
                 st.warning("Ollama is running, but no models were reported.")
+        elif _running_on_streamlit_cloud():
+            st.info("Running on Streamlit Community Cloud — local Ollama is skipped.")
         else:
             st.warning("Ollama unavailable on this host")
             st.code(setup_instructions(), language="text")
@@ -74,7 +112,10 @@ def main() -> None:
         if embeddings.available:
             st.success(f"Dense embeddings package available (`{embeddings.model_name}`)")
         else:
-            st.info("Dense embeddings optional package not installed; term frequency-inverse document frequency remains available")
+            st.info(
+                "Dense embeddings optional package not installed; "
+                "term frequency-inverse document frequency remains available"
+            )
 
         st.header("Settings")
         model = st.text_input("Ollama chat model", value=DEFAULT_MODEL)

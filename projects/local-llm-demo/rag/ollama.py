@@ -34,12 +34,13 @@ def _request(path: str, payload: dict | None = None, timeout: float = 3.0, base_
         return json.loads(response.read().decode("utf-8"))
 
 
-def status(base_url: str = DEFAULT_BASE_URL) -> OllamaStatus:
+def status(base_url: str = DEFAULT_BASE_URL, timeout: float = 3.0) -> OllamaStatus:
+    """Probe local Ollama. Always fail open; never hang beyond ``timeout`` seconds."""
     try:
-        payload = _request("/api/tags", base_url=base_url)
+        payload = _request("/api/tags", timeout=timeout, base_url=base_url)
         models = tuple(sorted(item["name"] for item in payload.get("models", []) if item.get("name")))
         return OllamaStatus(True, models)
-    except (OSError, urllib.error.URLError, json.JSONDecodeError, KeyError) as exc:
+    except (OSError, urllib.error.URLError, json.JSONDecodeError, KeyError, TimeoutError) as exc:
         return OllamaStatus(False, error=str(exc))
 
 

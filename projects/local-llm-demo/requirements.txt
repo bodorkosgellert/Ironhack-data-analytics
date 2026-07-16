@@ -1,0 +1,6 @@
+# Minimal deps for the Streamlit Community Cloud entrypoint
+# (projects/local-llm-demo/streamlit_app.py). Keep heavy stacks
+# (jupyter, sentence-transformers/torch) out of Cloud installs.
+streamlit>=1.32
+scikit-learn>=1.4
+numpy>=1.26
