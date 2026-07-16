@@ -60,5 +60,27 @@
     "id": "outside_geography",
     "question": "What is the specific PM2.5 effect estimate for California?",
     "expect_refusal": true
+  },
+  {
+    "id": "sample_size_synonym",
+    "question": "What is the sample size?",
+    "expected_source": "v2/outputs/feature_analysis.json",
+    "expected_locator": "$.n_counties"
+  },
+  {
+    "id": "observations_synonym",
+    "question": "How many observations are in the study?",
+    "expected_source": "v2/outputs/feature_analysis.json",
+    "expected_locator": "$.n_counties"
+  },
+  {
+    "id": "census_tracts_synonym",
+    "question": "How many census tracts were in Version 1?",
+    "expected_source": "projects/asthma-air-pollution"
+  },
+  {
+    "id": "participants_not_patients",
+    "question": "How many participants are in the study?",
+    "expected_source": "projects/asthma-air-pollution"
   }
 ]

@@ -10,6 +10,7 @@ This Streamlit app is **separate** from the Version 2 epidemiology dashboard in 
 
 - evidence navigation across methods, literature, validation notes, and saved outputs;
 - exact metric lookup from allowlisted JSON key paths;
+- synonym / structural-intent routing for sample size, tract counts, and not-patient clarifications;
 - deterministic source-path and locator citations;
 - explanation of epidemiological limitations and outcome definitions;
 - unsupported-geography refusal before generation;
@@ -32,7 +33,7 @@ The implementation deliberately uses the repository's existing scikit-learn depe
 2. Markdown is divided along heading boundaries. Long sections use paragraph-aware chunks with a small overlap.
 3. Every JSON leaf becomes stable text containing its exact key path, context label, and stored value.
 4. `rag/retrieval.py` builds an in-memory term frequency-inverse document frequency (TF-IDF) index and ranks passages with cosine similarity. Optional dense scores from `all-MiniLM-L6-v2` can be fused for hybrid ranking.
-5. `rag/metrics.py` routes recognised numeric intents to allowlisted JSON key paths and loads their values directly from the source files.
+5. `rag/metrics.py` routes recognised numeric and structural intents (including sample-size synonyms) to allowlisted JSON key paths or documented clarification passages, and loads metric values directly from the source files.
 6. `rag/assistant.py` renders routed values and citations in application code before optional Ollama or hosted narration. Conflicting numeric narration is discarded.
 7. `streamlit_app.py` and `rag/ask.py` expose the same assistant through graphical and command-line interfaces.
 
@@ -42,10 +43,12 @@ The TF-IDF index is rebuilt quickly in memory. Optional dense embeddings are cac
 
 I index only these public asthma artifacts:
 
-- the project overview, literature review, roadmap, and Version 2 documentation;
+- the project overview, literature review, roadmap, Version 1 retrospective notes, and Version 2 documentation;
 - `metrics.json`, `multivariate_metrics.json`, `robustness_report.json`, and `feature_analysis.json`.
 
-The allowlist excludes `docs/internal/`, repository archives, Version 1 archive-style originals, notebooks, comma-separated value files, generated caches, and all unrelated portfolio projects. Every retrieved chunk retains a repository-relative source path plus a Markdown heading or JSON key path.
+The allowlist excludes `docs/internal/`, repository archives, Version 1 notebook/original archive prose (`v1/ORIGINAL_README.md`), notebooks, comma-separated value files, generated caches, and all unrelated portfolio projects. Every retrieved chunk retains a repository-relative source path plus a Markdown heading or JSON key path.
+
+Guardrail levels (L0–L7), including which are implemented now versus future work, are documented in [GUARDRAILS.md](GUARDRAILS.md).
 
 ## Scientific safeguards
 
@@ -217,7 +220,7 @@ python compare_models.py --mode raw --models <model> --limit 5 --timeout 120 --o
 python compare_models.py --mode assistant --models <model> --limit 5 --timeout 120 --output outputs/model_comparison_assistant.csv
 ```
 
-The verified results are 20/20 unit tests (plus hybrid fusion tests), 12/12 deterministic retrieval cases, and 5/5 cases with 18/18 objective checks for the hardened Qwen assistant. Raw Qwen passed only 1/5 complete cases and 14/18 checks; the other two raw models timed out or failed. The assistant score is an architecture result, not raw-model superiority. Full methodology, timings, limitations, and reproducible commands are in [MODEL_EVALUATION.md](MODEL_EVALUATION.md). Generated reports remain ignored.
+The verified results are 37/37 unit tests (plus hybrid fusion tests in the same suite), 16/16 deterministic retrieval cases, and 5/5 cases with 18/18 objective checks for the hardened Qwen assistant. Raw Qwen passed only 1/5 complete cases and 14/18 checks; the other two raw models timed out or failed. The assistant score is an architecture result, not raw-model superiority. Full methodology, timings, limitations, and reproducible commands are in [MODEL_EVALUATION.md](MODEL_EVALUATION.md). Generated reports remain ignored.
 
 ## Industry context and repository prevalence
 

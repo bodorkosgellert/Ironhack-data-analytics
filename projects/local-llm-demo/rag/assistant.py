@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from .hosted import HostedLLMError, chat_hosted, load_hosted_config
-from .metrics import MetricFact, exact_metric_facts
+from .metrics import MetricFact, classify_structural_intent, exact_metric_facts
 from .ollama import DEFAULT_MODEL, OllamaError, chat, setup_instructions, status
 from .prompts import SYSTEM_PROMPT, user_prompt
 from .retrieval import HybridRetriever, LexicalRetriever, RetrievalMode, ScoredChunk, make_retriever
@@ -48,6 +48,25 @@ def _metric_answer(facts: list[MetricFact]) -> str:
         for fact in facts
     )
     return "\n".join(lines)
+
+
+def _structural_clarification(question: str) -> str | None:
+    """Application-owned lead-in for ecological unit questions (no invented counts)."""
+    if classify_structural_intent(question) != "not_patients":
+        return None
+    return (
+        "Clarification (application-owned): this analysis uses geographic CDC PLACES "
+        "prevalence estimates (counties in Version 2; census tracts in Version 1), not "
+        "individual patient or participant records. See retrieved evidence below."
+    )
+
+
+def _deterministic_answer(question: str, passages: list[ScoredChunk], facts: list[MetricFact]) -> str:
+    if facts:
+        return _metric_answer(facts)
+    clarification = _structural_clarification(question)
+    body = _retrieval_answer(passages)
+    return f"{clarification}\n\n{body}" if clarification else body
 
 
 def _narration_conflicts(generated: str, facts: list[MetricFact]) -> bool:
@@ -123,7 +142,7 @@ class EvidenceAssistant:
             )
 
         metric_facts = exact_metric_facts(question, self.retriever.chunks)
-        deterministic = _metric_answer(metric_facts) if metric_facts else _retrieval_answer(result.passages)
+        deterministic = _deterministic_answer(question, result.passages, metric_facts)
         if retrieval_only:
             return Answer(
                 deterministic,

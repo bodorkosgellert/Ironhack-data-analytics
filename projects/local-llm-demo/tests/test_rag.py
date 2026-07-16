@@ -4,7 +4,12 @@ import unittest
 
 from rag.assistant import EvidenceAssistant
 from rag.corpus import PUBLIC_JSON, PUBLIC_MARKDOWN, build_corpus
-from rag.metrics import exact_metric_chunks
+from rag.metrics import (
+    classify_structural_intent,
+    exact_metric_chunks,
+    exact_metric_facts,
+    synonym_examples_for_intent,
+)
 from rag.ollama import OllamaStatus
 from rag.retrieval import LexicalRetriever
 
@@ -84,6 +89,50 @@ class RetrievalTests(unittest.TestCase):
         )
         self.assertTrue(answer.refused)
         self.assertIn("does not answer", answer.text)
+        self.assertIn("California", answer.text)
+
+    def test_sample_size_synonyms_route_to_n_counties(self) -> None:
+        for question in synonym_examples_for_intent("n_counties"):
+            with self.subTest(question=question):
+                self.assertEqual(classify_structural_intent(question), "n_counties")
+                facts = exact_metric_facts(question, self.retriever.chunks)
+                self.assertTrue(facts)
+                self.assertEqual(facts[0].locator, "$.n_counties")
+                self.assertEqual(facts[0].value, 67)
+                answer = self.assistant.ask(question, retrieval_only=True)
+                self.assertFalse(answer.refused)
+                self.assertIn("67", answer.text)
+                self.assertIn("$.n_counties", answer.text)
+
+    def test_tract_synonyms_retrieve_documented_v1_count(self) -> None:
+        for question in synonym_examples_for_intent("tract_count"):
+            with self.subTest(question=question):
+                self.assertEqual(classify_structural_intent(question), "tract_count")
+                answer = self.assistant.ask(question, retrieval_only=True)
+                self.assertFalse(answer.refused)
+                combined = answer.text.lower()
+                self.assertTrue("1175" in combined or "1,175" in combined)
+                self.assertTrue("tract" in combined)
+
+    def test_participant_questions_clarify_not_patients(self) -> None:
+        for question in synonym_examples_for_intent("not_patients"):
+            with self.subTest(question=question):
+                self.assertEqual(classify_structural_intent(question), "not_patients")
+                answer = self.assistant.ask(question, retrieval_only=True)
+                self.assertFalse(answer.refused)
+                self.assertIn("not", answer.text.lower())
+                self.assertTrue(
+                    "patient" in answer.text.lower() or "participant" in answer.text.lower()
+                )
+                # Must not treat county N as a patient headcount.
+                self.assertNotIn("$.n_counties", answer.text)
+
+    def test_california_refusal_still_works_with_sample_size_words(self) -> None:
+        answer = self.assistant.ask(
+            "What is the California sample size and PM2.5 effect estimate?",
+            retrieval_only=True,
+        )
+        self.assertTrue(answer.refused)
         self.assertIn("California", answer.text)
 
     def test_low_score_refuses(self) -> None:

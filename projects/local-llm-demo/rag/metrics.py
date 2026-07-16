@@ -5,9 +5,11 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 from .corpus import ASTHMA_ROOT, Chunk
+
+StructuralIntent = Literal["n_counties", "tract_count", "not_patients"]
 
 
 @dataclass(frozen=True)
@@ -35,6 +37,124 @@ class MetricFact:
 
 def _normalise(question: str) -> str:
     return re.sub(r"[^a-z0-9²]+", " ", question.lower()).strip()
+
+
+# Synonym families for structural study questions. Order in classify_structural_intent
+# matters: patient clarification and tract count take precedence over county N.
+_TRACT_TERMS = (
+    r"\bcensus\s+tracts?\b",
+    r"\btracts?\b",
+    r"\bv1\s+rows?\b",
+    r"\bversion\s*1\s+rows?\b",
+    r"\b1\s*,?\s*175\b",
+    r"\b1175\b",
+)
+_SAMPLE_SIZE_TERMS = (
+    r"\bsample\s+size\b",
+    r"\bdata\s+points?\b",
+    r"\bdatapoints?\b",
+    r"\bobservations?\b",
+    r"\brows?\b",
+    r"\bn_counties\b",
+    r"\bhow\s+many\s+counties\b",
+    r"\bnumber\s+of\s+counties\b",
+    r"\bcounty\s+count\b",
+    r"\bcounties\s+in\s+the\s+(?:study|analysis|dataset|data)\b",
+    r"\bwhat(?:\s+is|\s*'?s)?\s+n\b",
+    r"\bn\s*=\s*",
+)
+
+TRACT_PREFERRED = {
+    (
+        "projects/asthma-air-pollution/v1/README.md",
+        "Version 1: original Ironhack capstone > Reproducibility status",
+    ),
+    (
+        "projects/asthma-air-pollution/v1/README_EXTENDED.md",
+        "Version 1 retrospective correction > What I built in 2021",
+    ),
+    (
+        "projects/asthma-air-pollution/v2/outputs/robustness_report.json",
+        "$.v1_vs_v2_matching.v1_risk",
+    ),
+    (
+        "projects/asthma-air-pollution/v2/VALIDATION.md",
+        "Statistical validation and uncertainty > Version 1 comparison",
+    ),
+}
+
+NOT_PATIENTS_PREFERRED = {
+    (
+        "projects/asthma-air-pollution/v1/README_EXTENDED.md",
+        "Version 1 retrospective correction > What I built in 2021",
+    ),
+    (
+        "projects/asthma-air-pollution/v1/README.md",
+        "Version 1: original Ironhack capstone > Reproducibility status",
+    ),
+    (
+        "projects/asthma-air-pollution/v2/VALIDATION.md",
+        "Statistical validation and uncertainty > Version 1 comparison",
+    ),
+    (
+        "projects/asthma-air-pollution/README.md",
+        "Asthma prevalence and air pollution > Short glossary",
+    ),
+}
+
+
+def _matches_any(question: str, patterns: tuple[str, ...]) -> bool:
+    return any(re.search(pattern, question) for pattern in patterns)
+
+
+def classify_structural_intent(question: str) -> StructuralIntent | None:
+    """Map natural-language structural questions onto application-owned intents."""
+    q = _normalise(question)
+    if not q:
+        return None
+
+    # Patient/participant wording must clarify ecological units, not answer with N=67.
+    # Causal "prove/cause … individuals" questions keep the separate safety-chunk path.
+    causal = bool(re.search(r"\b(caus\w*|causes|prove)\b", q))
+    if not causal and (
+        _matches_any(q, (r"\bpatients?\b", r"\bparticipants?\b"))
+        or (
+            _matches_any(q, (r"\bpeople\b", r"\bindividuals?\b", r"\bsubjects?\b"))
+            and _matches_any(q, (r"\bhow\s+many\b", r"\bnumber\s+of\b", r"\bcount\b", r"\bsample\b"))
+        )
+    ):
+        return "not_patients"
+
+    if _matches_any(q, _TRACT_TERMS):
+        return "tract_count"
+
+    if _matches_any(q, _SAMPLE_SIZE_TERMS):
+        return "n_counties"
+
+    return None
+
+
+def synonym_examples_for_intent(intent: StructuralIntent) -> tuple[str, ...]:
+    """Documented examples used by tests and guardrail notes."""
+    if intent == "n_counties":
+        return (
+            "How many data points are in the study?",
+            "What is the sample size?",
+            "How many observations?",
+            "How many rows?",
+            "How many counties?",
+            "What is n?",
+        )
+    if intent == "tract_count":
+        return (
+            "How many census tracts?",
+            "How many tracts in Version 1?",
+            "What are the v1 rows?",
+        )
+    return (
+        "How many participants?",
+        "How many patients are in the study?",
+    )
 
 
 def targets_for_question(question: str) -> list[MetricTarget]:
@@ -90,6 +210,8 @@ def targets_for_question(question: str) -> list[MetricTarget]:
                 "$.pearson_correlation_matrix.asthma_pct.obesity_pct",
             )
         )
+    if classify_structural_intent(question) == "n_counties":
+        targets.append(MetricTarget("v2/outputs/feature_analysis.json", "$.n_counties"))
     return targets
 
 
@@ -101,6 +223,31 @@ def exact_metric_chunks(question: str, chunks: list[Chunk]) -> list[Chunk]:
         for chunk in chunks
         if chunk.source.endswith(target.source_suffix) and chunk.locator == target.locator
     ]
+
+
+def structural_preferred_chunks(question: str, chunks: list[Chunk]) -> list[Chunk]:
+    """Boost documented passages for tract-count and not-patient clarifications."""
+    intent = classify_structural_intent(question)
+    if intent == "tract_count":
+        preferred = TRACT_PREFERRED
+    elif intent == "not_patients":
+        preferred = NOT_PATIENTS_PREFERRED
+    else:
+        return []
+    return [chunk for chunk in chunks if (chunk.source, chunk.locator) in preferred]
+
+
+def routed_evidence_chunks(question: str, chunks: list[Chunk]) -> list[Chunk]:
+    """Union of deterministic metric leaves and structural preferred passages."""
+    seen: set[tuple[str, str]] = set()
+    ordered: list[Chunk] = []
+    for chunk in exact_metric_chunks(question, chunks) + structural_preferred_chunks(question, chunks):
+        key = (chunk.source, chunk.locator)
+        if key in seen:
+            continue
+        seen.add(key)
+        ordered.append(chunk)
+    return ordered
 
 
 def _value_at_path(data: Any, locator: str) -> Any:
@@ -135,5 +282,8 @@ def is_numeric_question(question: str) -> bool:
         "p value",
         "confidence interval",
         "how many",
+        "sample size",
+        "data points",
+        "observations",
     }
-    return any(term in q for term in terms)
+    return any(term in q for term in terms) or classify_structural_intent(question) is not None

@@ -13,7 +13,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from .corpus import Chunk, build_corpus
 from .fusion import fuse_weighted_scores, reciprocal_rank_fusion
-from .metrics import exact_metric_chunks
+from .metrics import routed_evidence_chunks
 from .textnorm import search_text
 
 RetrievalMode = Literal["tfidf", "dense", "hybrid"]
@@ -256,9 +256,9 @@ class HybridRetriever:
             if combined[index] > 0
         ]
 
-        # Exact metric routing is deterministic and takes precedence over prose
-        # similarity; no value is calculated or parsed from natural language.
-        exact = exact_metric_chunks(question, self.chunks) + _safety_chunks(question, self.chunks)
+        # Exact metric / structural-intent routing is deterministic and takes
+        # precedence over prose similarity; no value is calculated from NL.
+        exact = routed_evidence_chunks(question, self.chunks) + _safety_chunks(question, self.chunks)
         exact_ids = {(chunk.source, chunk.locator) for chunk in exact}
         merged = [ScoredChunk(chunk, 1.0) for chunk in exact]
         merged.extend(item for item in ranked if (item.chunk.source, item.chunk.locator) not in exact_ids)

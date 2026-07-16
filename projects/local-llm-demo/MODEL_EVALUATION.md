@@ -40,7 +40,7 @@ An earlier bounded comparison also found Qwen faster and relatively better at ci
 
 This is an assistant architecture result, not evidence that raw Qwen achieved 5/5. For recognised metric questions, application code loads authoritative values from allowlisted JSON files by exact key path and renders the value and citation. Generated prose is optional and is omitted if it introduces a conflicting number. Unsupported geography refuses before any model call.
 
-The deterministic retrieval benchmark separately passed 12/12 fixed cases on the default TF-IDF path. The unit suite covers corpus construction, retrieval, answer composition, hybrid score fusion, and graceful fallback when `sentence-transformers` is absent. Those unit tests do not download MiniLM weights.
+The deterministic retrieval benchmark separately passed 16/16 fixed cases on the default TF-IDF path. The unit suite covers corpus construction, retrieval, structural synonym routing, answer composition, hybrid score fusion, and graceful fallback when `sentence-transformers` is absent. Those unit tests do not download MiniLM weights.
 
 ## Interpretation
 

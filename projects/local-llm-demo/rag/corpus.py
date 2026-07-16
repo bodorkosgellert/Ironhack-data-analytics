@@ -18,6 +18,8 @@ PUBLIC_MARKDOWN = (
     "README.md",
     "LITERATURE.md",
     "ROADMAP.md",
+    "v1/README.md",
+    "v1/README_EXTENDED.md",
     "v2/README.md",
     "v2/VALIDATION.md",
     "v2/FEATURE_ANALYSIS.md",
