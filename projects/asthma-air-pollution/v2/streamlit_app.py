@@ -295,7 +295,7 @@ def main() -> None:
         "Related app: [Evidence assistant (Q&A)](https://asthma-evidence-assistant.streamlit.app/) "
         "· Source: "
         "[`projects/asthma-air-pollution/v2` on `main`]"
-        "(https://github.com/bodorkosgellert/Ironhack/tree/main/projects/asthma-air-pollution/v2)"
+        "(https://github.com/bodorkosgellert/ironhack-data-analytics/tree/main/projects/asthma-air-pollution/v2)"
     )
 
 

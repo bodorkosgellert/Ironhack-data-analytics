@@ -229,7 +229,7 @@ def main() -> None:
         "Related app: [County dashboard (charts)](https://alabama-asthma-pm25.streamlit.app/) "
         "· Source: "
         "[`projects/local-llm-demo` on `main`]"
-        "(https://github.com/bodorkosgellert/Ironhack/tree/main/projects/local-llm-demo)"
+        "(https://github.com/bodorkosgellert/ironhack-data-analytics/tree/main/projects/local-llm-demo)"
     )
 
 

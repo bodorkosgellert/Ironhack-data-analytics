@@ -12,7 +12,7 @@ Open the [County dashboard (charts)](https://alabama-asthma-pm25.streamlit.app/)
 streamlit run streamlit_app.py
 ```
 
-This dashboard does not embed the evidence assistant. For cited question answering over the public project corpus, open the [Evidence assistant (Q&A)](https://asthma-evidence-assistant.streamlit.app/) or run the separate app in [`projects/local-llm-demo`](https://github.com/bodorkosgellert/Ironhack/tree/main/projects/local-llm-demo) (`streamlit run streamlit_app.py` from that directory).
+This dashboard does not embed the evidence assistant. For cited question answering over the public project corpus, open the [Evidence assistant (Q&A)](https://asthma-evidence-assistant.streamlit.app/) or run the separate app in [`projects/local-llm-demo`](https://github.com/bodorkosgellert/ironhack-data-analytics/tree/main/projects/local-llm-demo) (`streamlit run streamlit_app.py` from that directory).
 
 ## Requirements
 

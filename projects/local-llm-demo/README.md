@@ -10,8 +10,8 @@ This Streamlit app is **separate** from the Version 2 epidemiology dashboard in 
 
 - [Evidence assistant (Q&A)](https://asthma-evidence-assistant.streamlit.app/)
 - [County dashboard (charts)](https://alabama-asthma-pm25.streamlit.app/)
-- [Assistant source on `main`](https://github.com/bodorkosgellert/Ironhack/tree/main/projects/local-llm-demo)
-- [Dashboard source on `main`](https://github.com/bodorkosgellert/Ironhack/tree/main/projects/asthma-air-pollution/v2)
+- [Assistant source on `main`](https://github.com/bodorkosgellert/ironhack-data-analytics/tree/main/projects/local-llm-demo)
+- [Dashboard source on `main`](https://github.com/bodorkosgellert/ironhack-data-analytics/tree/main/projects/asthma-air-pollution/v2)
 
 ## Implemented capabilities
 

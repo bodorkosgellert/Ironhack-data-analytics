@@ -10,7 +10,7 @@ Version 1 is my original bootcamp work. I developed the 2026 restructuring, Vers
 
 - [County dashboard (charts)](https://alabama-asthma-pm25.streamlit.app/)
 - [Evidence assistant (Q&A)](https://asthma-evidence-assistant.streamlit.app/)
-- [Version 2 source on `main`](https://github.com/bodorkosgellert/Ironhack/tree/main/projects/asthma-air-pollution/v2)
+- [Version 2 source on `main`](https://github.com/bodorkosgellert/ironhack-data-analytics/tree/main/projects/asthma-air-pollution/v2)
 - [Version 2 technical runbook](v2/)
 - [Statistical validation](v2/VALIDATION.md)
 - [Literature and study-design comparison](LITERATURE.md)
