@@ -16,6 +16,7 @@ ASTHMA_ROOT = REPO_ROOT / "projects" / "asthma-air-pollution"
 # files to enter the corpus merely because they were added below this directory.
 PUBLIC_MARKDOWN = (
     "README.md",
+    "STUDY_FAQ.md",
     "LITERATURE.md",
     "ROADMAP.md",
     "v1/README.md",

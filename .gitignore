@@ -34,3 +34,6 @@ projects/local-llm-demo/.rag-cache/
 .DS_Store
 Thumbs.db
 _test_*.py
+
+# Evidence-assistant eval run dumps (keep suite under evals/; ignore result noise)
+projects/local-llm-demo/outputs/evidence_assistant_eval_*.json

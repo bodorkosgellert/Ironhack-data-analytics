@@ -14,7 +14,9 @@ if str(_DEMO_ROOT) not in sys.path:
 
 import streamlit as st
 
+from rag.highlight import highlight_key_spans
 from rag.hosted import hosted_status
+from rag.metrics import exact_metric_facts
 from rag.ollama import DEFAULT_MODEL, OllamaStatus, setup_instructions, status
 
 
@@ -70,6 +72,10 @@ def get_assistant(
         dense_weight=dense_weight,
         hosted_secrets=_streamlit_secrets(),
     )
+
+
+def _render_markdown(text: str, *, facts, question: str) -> None:
+    st.markdown(highlight_key_spans(text, metric_facts=facts, question=question))
 
 
 def main() -> None:
@@ -161,14 +167,34 @@ def main() -> None:
             step=0.01,
         )
         generation_available = (ollama.available and model in ollama.models) or hosted_ok
-        retrieval_only = st.checkbox(
-            "Retrieval only (no generation)",
-            value=not generation_available,
+
+        rephrase = st.checkbox(
+            "Rephrase evidence",
+            value=False,
+            disabled=not generation_available,
             help=(
-                "Returns cited passages and deterministic metrics without asking a language model "
-                "to narrate them. Recommended on Streamlit Community Cloud unless hosted secrets are set."
+                "Asks the same Ollama/hosted model to paraphrase retrieved or verified evidence "
+                "for readability. Numbers must be copied verbatim; invented values are dropped (L5). "
+                "Requires generation — disables retrieval-only."
             ),
         )
+        if not generation_available:
+            st.caption("Rephrase evidence needs a local Ollama model or hosted language-model secrets.")
+
+        retrieval_only = st.checkbox(
+            "Retrieval only (no generation)",
+            value=(not generation_available) and not rephrase,
+            disabled=rephrase,
+            help=(
+                "Returns cited passages and deterministic metrics without asking a language model "
+                "to narrate them. Recommended on Streamlit Community Cloud unless hosted secrets are set. "
+                "Disabled while Rephrase evidence is on."
+            ),
+        )
+        if rephrase:
+            retrieval_only = False
+            st.caption("Rephrase uses generation; retrieval-only is off for this run.")
+
         if retrieval_mode in {"hybrid", "dense"} and not sentence_transformers_available():
             st.caption(
                 "sentence-transformers is not installed here; the assistant will fall back to "
@@ -190,23 +216,32 @@ def main() -> None:
 
     with st.chat_message("user"):
         st.write(question)
-    with st.spinner("Retrieving cited evidence…"):
-        answer = get_assistant(
+    spinner_label = "Rephrasing cited evidence…" if rephrase else "Retrieving cited evidence…"
+    with st.spinner(spinner_label):
+        assistant = get_assistant(
             threshold,
             retrieval_mode,
             lexical_weight,
             dense_weight,
-        ).ask(
+        )
+        answer = assistant.ask(
             question,
             top_k=top_k,
             retrieval_only=retrieval_only,
+            rephrase=rephrase,
             model=model,
         )
     with st.chat_message("assistant"):
         if answer.refused:
             st.warning(answer.text)
         else:
-            st.markdown(answer.text)
+            facts = exact_metric_facts(question, assistant.retriever.chunks)
+            if answer.readable_summary:
+                st.markdown("**Readable summary**")
+                _render_markdown(answer.readable_summary, facts=facts, question=question)
+                st.markdown("---")
+            _render_markdown(answer.text, facts=facts, question=question)
+            st.caption("Key numbers from retrieved evidence are bolded for scanning.")
         if answer.notice:
             st.info(answer.notice)
         st.caption(f"Retrieval mode used: `{answer.retrieval_mode}`")

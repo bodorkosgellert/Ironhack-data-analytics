@@ -6,6 +6,7 @@ from rag.assistant import EvidenceAssistant
 from rag.corpus import PUBLIC_JSON, PUBLIC_MARKDOWN, build_corpus
 from rag.metrics import (
     classify_structural_intent,
+    classify_topic_intent,
     exact_metric_chunks,
     exact_metric_facts,
     synonym_examples_for_intent,
@@ -199,6 +200,64 @@ class GeneratedAnswerCompositionTests(unittest.TestCase):
         self.assertTrue(answer.refused)
         self.assertFalse(answer.generation_used)
         self.assertFalse(self.calls)
+
+
+class RephraseEvidenceTests(unittest.TestCase):
+    MODEL = "mock:model"
+
+    def setUp(self) -> None:
+        self.system_prompts: list[str] = []
+
+    def assistant(self, response: str) -> EvidenceAssistant:
+        def mocked_chat(model: str, system: str, user: str) -> str:
+            self.system_prompts.append(system)
+            return response
+
+        return EvidenceAssistant(
+            status_fn=lambda: OllamaStatus(True, (self.MODEL,)),
+            chat_fn=mocked_chat,
+        )
+
+    def test_rephrase_overrides_retrieval_only_and_keeps_verified_block(self) -> None:
+        summary = (
+            "The stored Pearson correlation between PM2.5 and asthma is "
+            "-0.05726740504810031."
+        )
+        answer = self.assistant(summary).ask(
+            "What is the Pearson correlation between PM2.5 and asthma?",
+            retrieval_only=True,
+            rephrase=True,
+            model=self.MODEL,
+        )
+        self.assertTrue(answer.generation_used)
+        self.assertEqual(answer.readable_summary, summary)
+        self.assertIn("Verified stored metric", answer.text)
+        self.assertIn("-0.05726740504810031", answer.text)
+        self.assertTrue(any("rewrite" in prompt.lower() or "rephrase" in prompt.lower()
+                            or "readability" in prompt.lower()
+                            for prompt in self.system_prompts))
+
+    def test_rephrase_drops_summary_on_numeric_conflict(self) -> None:
+        answer = self.assistant("The Pearson correlation is -0.99.").ask(
+            "What is the Pearson correlation between PM2.5 and asthma?",
+            rephrase=True,
+            model=self.MODEL,
+        )
+        self.assertIsNone(answer.readable_summary)
+        self.assertIn("-0.05726740504810031", answer.text)
+        self.assertNotIn("-0.99", answer.text)
+        self.assertIn("Readable summary was omitted", answer.notice or "")
+
+    def test_rephrase_off_leaves_readable_summary_empty(self) -> None:
+        answer = self.assistant("County ecological analysis only.").ask(
+            "Why can this ecological study not establish causality?",
+            retrieval_only=True,
+            rephrase=False,
+            model=self.MODEL,
+        )
+        self.assertIsNone(answer.readable_summary)
+        self.assertFalse(answer.generation_used)
+        self.assertFalse(self.system_prompts)
 
 
 if __name__ == "__main__":

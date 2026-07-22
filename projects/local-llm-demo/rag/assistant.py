@@ -9,7 +9,7 @@ from typing import Callable
 from .hosted import HostedLLMError, chat_hosted, load_hosted_config
 from .metrics import MetricFact, classify_structural_intent, exact_metric_facts
 from .ollama import DEFAULT_MODEL, OllamaError, chat, setup_instructions, status
-from .prompts import SYSTEM_PROMPT, user_prompt
+from .prompts import REPHRASE_SYSTEM_PROMPT, SYSTEM_PROMPT, rephrase_user_prompt, user_prompt
 from .retrieval import HybridRetriever, LexicalRetriever, RetrievalMode, ScoredChunk, make_retriever
 
 REFUSAL = "The available evidence does not answer this question."
@@ -23,6 +23,8 @@ class Answer:
     generation_used: bool
     notice: str | None = None
     retrieval_mode: str = "tfidf"
+    # Present when "Rephrase evidence" succeeded (rewrite-only; non-authoritative).
+    readable_summary: str | None = None
 
 
 def _context(passages: list[ScoredChunk]) -> str:
@@ -31,9 +33,16 @@ def _context(passages: list[ScoredChunk]) -> str:
     )
 
 
+_MAX_RETRIEVAL_PASSAGES = 3
+
+
 def _retrieval_answer(passages: list[ScoredChunk]) -> str:
+    """Render a short cited evidence block; prefer the top routed passages only."""
     lines = ["Retrieved evidence (values are quoted, not recomputed):"]
-    lines.extend(f"- {item.chunk.text} [{item.citation}]" for item in passages)
+    lines.extend(
+        f"- {item.chunk.text} [{item.citation}]"
+        for item in passages[:_MAX_RETRIEVAL_PASSAGES]
+    )
     return "\n".join(lines)
 
 
@@ -125,6 +134,7 @@ class EvidenceAssistant:
         *,
         top_k: int = 5,
         retrieval_only: bool = False,
+        rephrase: bool = False,
         model: str = DEFAULT_MODEL,
     ) -> Answer:
         result = self.retriever.search(question, top_k=top_k)
@@ -143,6 +153,19 @@ class EvidenceAssistant:
 
         metric_facts = exact_metric_facts(question, self.retriever.chunks)
         deterministic = _deterministic_answer(question, result.passages, metric_facts)
+
+        # Rephrase requires generation; it overrides retrieval-only.
+        if rephrase:
+            return self._ask_rephrase(
+                question,
+                deterministic,
+                metric_facts,
+                result.passages,
+                retrieval_mode,
+                retrieval_notice,
+                model,
+            )
+
         if retrieval_only:
             return Answer(
                 deterministic,
@@ -153,85 +176,125 @@ class EvidenceAssistant:
                 retrieval_mode=retrieval_mode,
             )
 
+        generated, gen_notice = self._generate(
+            SYSTEM_PROMPT,
+            user_prompt(question, _context(result.passages)),
+            model,
+        )
+        if generated is None:
+            return Answer(
+                deterministic,
+                result.passages,
+                False,
+                False,
+                notice=_join_notices(retrieval_notice, gen_notice),
+                retrieval_mode=retrieval_mode,
+            )
+        return self._compose_generated(
+            generated,
+            deterministic,
+            metric_facts,
+            result.passages,
+            retrieval_mode,
+            _join_notices(retrieval_notice, gen_notice),
+        )
+
+    def _generate(
+        self,
+        system: str,
+        user: str,
+        model: str,
+    ) -> tuple[str | None, str | None]:
+        """Try Ollama then hosted chat. Returns (text, notice). text is None on failure."""
         ollama_status = self.status_fn()
         if ollama_status.available and model in ollama_status.models:
             try:
-                generated = self.chat_fn(
-                    model,
-                    SYSTEM_PROMPT,
-                    user_prompt(question, _context(result.passages)),
-                )
+                return self.chat_fn(model, system, user), None
             except OllamaError as exc:
-                return Answer(
-                    deterministic,
-                    result.passages,
-                    False,
-                    False,
-                    notice=_join_notices(retrieval_notice, f"{exc}\nShowing deterministic retrieval only."),
-                    retrieval_mode=retrieval_mode,
-                )
-            return self._compose_generated(
-                generated,
-                deterministic,
-                metric_facts,
-                result.passages,
-                retrieval_mode,
-                retrieval_notice,
-            )
+                return None, f"{exc}\nShowing deterministic retrieval only."
 
         hosted = load_hosted_config(self.hosted_secrets)
         if hosted is not None:
             try:
-                generated = self.hosted_chat_fn(
-                    SYSTEM_PROMPT,
-                    user_prompt(question, _context(result.passages)),
+                text = self.hosted_chat_fn(
+                    system,
+                    user,
                     config=hosted,
                     secrets=self.hosted_secrets,
                 )
             except HostedLLMError as exc:
-                return Answer(
-                    deterministic,
-                    result.passages,
-                    False,
-                    False,
-                    notice=_join_notices(
-                        retrieval_notice,
-                        f"{exc}\nShowing deterministic retrieval only.",
-                    ),
-                    retrieval_mode=retrieval_mode,
-                )
-            return self._compose_generated(
-                generated,
-                deterministic,
-                metric_facts,
-                result.passages,
-                retrieval_mode,
-                _join_notices(
-                    retrieval_notice,
-                    f"Used hosted model `{hosted.model}` because local Ollama was unavailable.",
-                ),
-            )
+                return None, f"{exc}\nShowing deterministic retrieval only."
+            return text, f"Used hosted model `{hosted.model}` because local Ollama was unavailable."
 
         if not ollama_status.available:
-            notice = _join_notices(
-                retrieval_notice,
+            notice = (
                 "Ollama was not detected and no hosted language-model secrets were configured; "
-                "showing deterministic retrieval only.\n" + setup_instructions(model),
+                "showing deterministic retrieval only.\n" + setup_instructions(model)
             )
         else:
-            notice = _join_notices(
-                retrieval_notice,
+            notice = (
                 f"Model `{model}` is not installed locally and no hosted language-model secrets "
                 f"were configured. Run `ollama pull {model}`, or set HOSTED_LLM_* secrets; "
-                "showing retrieval only.",
+                "showing retrieval only."
             )
+        return None, notice
+
+    def _ask_rephrase(
+        self,
+        question: str,
+        deterministic: str,
+        metric_facts: list[MetricFact],
+        passages: list[ScoredChunk],
+        retrieval_mode: str,
+        retrieval_notice: str | None,
+        model: str,
+    ) -> Answer:
+        """Rewrite-only path: readable summary + authoritative verified/retrieved block."""
+        citation_block = _citations(passages)
+        body = f"{deterministic}\n\nRetrieved citations:\n{citation_block}"
+        evidence_for_model = f"{deterministic}\n\nSource passages:\n{_context(passages)}"
+
+        generated, gen_notice = self._generate(
+            REPHRASE_SYSTEM_PROMPT,
+            rephrase_user_prompt(question, evidence_for_model),
+            model,
+        )
+        if generated is None:
+            return Answer(
+                body,
+                passages,
+                False,
+                False,
+                notice=_join_notices(
+                    retrieval_notice,
+                    gen_notice,
+                    "Rephrase evidence needs Ollama or hosted language-model secrets.",
+                ),
+                retrieval_mode=retrieval_mode,
+            )
+
+        if metric_facts and _narration_conflicts(generated, metric_facts):
+            return Answer(
+                body,
+                passages,
+                False,
+                True,
+                notice=_join_notices(
+                    retrieval_notice,
+                    gen_notice,
+                    "Readable summary was omitted because it contained a conflicting numeric value.",
+                ),
+                retrieval_mode=retrieval_mode,
+            )
+
         return Answer(
-            deterministic,
-            result.passages,
+            body,
+            passages,
             False,
-            False,
-            notice=notice,
+            True,
+            notice=_join_notices(retrieval_notice, gen_notice),
             retrieval_mode=retrieval_mode,
+            readable_summary=generated.strip(),
         )
 
     def _compose_generated(

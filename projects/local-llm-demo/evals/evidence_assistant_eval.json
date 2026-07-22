@@ -1,0 +1,153 @@
+[
+  {
+    "id": "pearson_exact",
+    "question": "What is the exact Pearson correlation between PM2.5 and asthma?",
+    "expected_answer": "Stored Pearson r = -0.05726740504810031 (Alabama 2023 county analysis).",
+    "must_include": ["Verified stored metric", "-0.05726740504810031", "$.pearson_r_pm25_asthma"],
+    "must_not_include": ["California"],
+    "category": "metric",
+    "notes": "Source: v2/outputs/metrics.json → $.pearson_r_pm25_asthma"
+  },
+  {
+    "id": "n_counties_metric",
+    "question": "How many Alabama counties are in the Version 2 analysis?",
+    "expected_answer": "n_counties = 67 via deterministic routing (not rambling TF-IDF).",
+    "must_include": ["Verified stored metric", "67", "$.n_counties"],
+    "must_not_include": ["1175", "1,175", "pipeline creates"],
+    "category": "metric",
+    "notes": "Source: v2/outputs/feature_analysis.json → $.n_counties; phrasing has words between 'many' and 'counties'"
+  },
+  {
+    "id": "partial_r_pm25",
+    "question": "What is the adjusted partial correlation between PM2.5 and asthma?",
+    "expected_answer": "partial_r_pm25_ug_m3_annual_mean_vs_asthma = 0.1996.",
+    "must_include": ["Verified stored metric", "0.1996"],
+    "must_not_include": ["proves causation"],
+    "category": "metric",
+    "notes": "Source: v2/outputs/multivariate_metrics.json → $.partial_correlations_vs_asthma.partial_r_pm25_ug_m3_annual_mean_vs_asthma"
+  },
+  {
+    "id": "r2_cv_pm25_only",
+    "question": "What is the cross-validated R² for the PM2.5-only model?",
+    "expected_answer": "r2_cv_mean for models[0] (pm25_only) = -0.321694185275063.",
+    "must_include": ["Verified stored metric", "-0.321694185275063", "$.models[0].r2_cv_mean"],
+    "category": "metric",
+    "notes": "Source: v2/outputs/multivariate_metrics.json; negative R² means worse than predicting the mean"
+  },
+  {
+    "id": "pm25_coefficient_of_variation",
+    "question": "What is the PM2.5 coefficient of variation?",
+    "expected_answer": "CV ≈ 0.03469709687386365 (limited exposure contrast).",
+    "must_include": ["Verified stored metric", "0.03469709687386365"],
+    "category": "metric",
+    "notes": "Source: v2/outputs/feature_analysis.json → $.variance_analysis.pm25_ug_m3_annual_mean.cv"
+  },
+  {
+    "id": "bootstrap_ci_pm25",
+    "question": "What is the bootstrap confidence interval for the PM2.5 asthma correlation?",
+    "expected_answer": "95% bootstrap CI roughly [-0.2785, 0.1971] (includes zero).",
+    "must_include": ["Verified stored metric", "-0.2785", "0.1971"],
+    "category": "metric",
+    "notes": "Source: v2/outputs/robustness_report.json → $.pm25_asthma_association.bootstrap_95ci"
+  },
+  {
+    "id": "obesity_positive_control",
+    "question": "What is the Pearson correlation between obesity and asthma in the multivariate outputs?",
+    "expected_answer": "asthma_pct × obesity_pct Pearson r = 0.8646 (positive-control contrast to weak PM2.5).",
+    "must_include": ["Verified stored metric", "0.8646"],
+    "category": "metric",
+    "notes": "Source: v2/outputs/multivariate_metrics.json → $.pearson_correlation_matrix.asthma_pct.obesity_pct"
+  },
+  {
+    "id": "sample_size_synonym",
+    "question": "What is the sample size?",
+    "expected_answer": "County N = 67 (structural synonym for n_counties).",
+    "must_include": ["Verified stored metric", "67", "$.n_counties"],
+    "must_not_include": ["patients", "participants"],
+    "category": "synonym",
+    "notes": "L3 synonym routing; same leaf as feature_analysis.json $.n_counties"
+  },
+  {
+    "id": "data_points_synonym",
+    "question": "How many data points are in the study?",
+    "expected_answer": "67 Alabama counties / observations.",
+    "must_include": ["Verified stored metric", "67", "$.n_counties"],
+    "must_not_include": ["California"],
+    "category": "synonym",
+    "notes": "Synonym family documented in GUARDRAILS.md and rag/metrics.py"
+  },
+  {
+    "id": "observations_synonym",
+    "question": "How many observations are in the study?",
+    "expected_answer": "67 county-level observations.",
+    "must_include": ["Verified stored metric", "67", "$.n_counties"],
+    "category": "synonym",
+    "notes": "Same n_counties routing as sample-size / data-points phrasings"
+  },
+  {
+    "id": "pm25_no_predictive_gain",
+    "question": "Does adding PM2.5 improve prediction after the health indicators are included?",
+    "expected_answer": "No — PM2.5 did not improve holdout or cross-validated prediction after the other indicators were included.",
+    "must_include": ["did not improve"],
+    "must_not_include": ["California", "proves that PM2.5 causes", "y resolution"],
+    "category": "limitations",
+    "notes": "Documented in STUDY_FAQ.md, VALIDATION.md, README.md"
+  },
+  {
+    "id": "ecological_not_causal",
+    "question": "Does this study prove that PM2.5 causes asthma in individuals?",
+    "expected_answer": "No — ecological county-level design; cannot transfer associations to individuals.",
+    "must_include": ["ecological"],
+    "must_not_include": ["this study proves", "causal effect is established", "y resolution"],
+    "category": "limitations",
+    "notes": "Safety-preferred passages in retrieval; compare_models ecological_causality case. Avoid naive substring bans that false-fail negated wording."
+  },
+  {
+    "id": "california_refusal",
+    "question": "What is the specific PM2.5 effect estimate for California?",
+    "expected_answer": "Refuse: corpus is Alabama-only; no California effect estimate.",
+    "must_include": ["does not answer", "California"],
+    "must_not_include": ["-0.05726740504810031"],
+    "category": "refusal",
+    "expect_refusal": true,
+    "notes": "L4 geography refusal in rag/retrieval.py OTHER_GEOGRAPHIES"
+  },
+  {
+    "id": "texas_refusal",
+    "question": "What is the PM2.5–asthma Pearson correlation for Texas counties?",
+    "expected_answer": "Refuse: unsupported geography outside Alabama corpus.",
+    "must_include": ["does not answer", "Texas"],
+    "must_not_include": ["0.1996", "Verified stored metric"],
+    "category": "refusal",
+    "expect_refusal": true,
+    "notes": "Second out-of-scope geography check (Texas)"
+  },
+  {
+    "id": "participants_not_patients",
+    "question": "How many participants are in the study?",
+    "expected_answer": "Clarify: CDC PLACES geographic prevalence units, not individual patient records; do not answer with county N as a patient headcount.",
+    "must_include": ["Clarification", "PLACES", "patient"],
+    "must_not_include": ["$.n_counties", "coefficient of determination", "pipeline creates"],
+    "category": "refusal",
+    "expect_refusal": false,
+    "notes": "Out-of-scope as patient headcount; application returns not_patients clarification (GUARDRAILS L3)"
+  },
+  {
+    "id": "v1_tract_count_insight",
+    "question": "How many census tracts were in Version 1?",
+    "expected_answer": "Version 1 used 1,175 Alabama census-tract rows (geographic units, not patients).",
+    "must_include": ["tract", "1175"],
+    "must_not_include": ["California", "y resolution", "pipeline creates"],
+    "category": "insight",
+    "notes": "Documented in STUDY_FAQ.md, v1/README_EXTENDED.md, robustness_report.json"
+  },
+  {
+    "id": "outcome_definitions_insight",
+    "question": "How do prevalence, incidence, and acute exacerbations differ in this analysis?",
+    "expected_answer": "Analysis uses chronic/current adult asthma prevalence; incidence and acute exacerbations are distinct outcomes not measured here.",
+    "must_include": ["prevalence", "incidence", "exacerbation"],
+    "must_not_include": ["California", "y resolution", "pipeline creates"],
+    "category": "methods",
+    "notes": "Prefer STUDY_FAQ / README outcome passages; not free invention"
+  }
+]

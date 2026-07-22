@@ -78,6 +78,10 @@ def _safety_chunks(question: str, chunks: list[Chunk]) -> list[Chunk]:
         return []
     preferred = {
         (
+            "projects/asthma-air-pollution/STUDY_FAQ.md",
+            "Study FAQ (curated evidence snippets) > Ecological design and individual causation",
+        ),
+        (
             "projects/asthma-air-pollution/README.md",
             "Asthma prevalence and air pollution > Research question",
         ),
@@ -256,13 +260,21 @@ class HybridRetriever:
             if combined[index] > 0
         ]
 
-        # Exact metric / structural-intent routing is deterministic and takes
+        # Exact metric / structural / FAQ routing is deterministic and takes
         # precedence over prose similarity; no value is calculated from NL.
+        # When routing hits, do not pad with weaker TF-IDF passages (avoids
+        # glossary/table fragments drowning the curated answer).
         exact = routed_evidence_chunks(question, self.chunks) + _safety_chunks(question, self.chunks)
-        exact_ids = {(chunk.source, chunk.locator) for chunk in exact}
-        merged = [ScoredChunk(chunk, 1.0) for chunk in exact]
-        merged.extend(item for item in ranked if (item.chunk.source, item.chunk.locator) not in exact_ids)
-        passages = merged[: max(1, top_k)]
+        if exact:
+            passages = [ScoredChunk(chunk, 1.0) for chunk in exact][: max(1, top_k)]
+            return Retrieval(
+                passages,
+                False,
+                mode=self.effective_mode,
+                notice=self._dense_notice,
+            )
+
+        passages = ranked[: max(1, top_k)]
 
         # Reciprocal Rank Fusion scores are small absolute values, so refusal still
         # inspects the best underlying cosine similarity from either channel.
@@ -274,14 +286,15 @@ class HybridRetriever:
         else:
             best_retrieval_score = ranked[0].score if ranked else 0.0
 
-        if exact:
-            pass  # exact routing is authoritative even when prose similarity is weak
-        elif not passages or best_retrieval_score < self.threshold:
+        if not passages or best_retrieval_score < self.threshold:
             score = best_retrieval_score
             return Retrieval(
                 passages,
                 True,
-                f"No passage met the evidence threshold ({score:.3f} < {self.threshold:.3f}).",
+                (
+                    "No passage in the allowlisted study docs met the evidence threshold "
+                    f"({score:.3f} < {self.threshold:.3f})."
+                ),
                 mode=self.effective_mode,
                 notice=self._dense_notice,
             )

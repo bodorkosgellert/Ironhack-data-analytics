@@ -10,6 +10,7 @@ from typing import Any, Literal
 from .corpus import ASTHMA_ROOT, Chunk
 
 StructuralIntent = Literal["n_counties", "tract_count", "not_patients"]
+TopicIntent = Literal["predictive_gain", "outcome_definitions"]
 
 
 @dataclass(frozen=True)
@@ -56,22 +57,44 @@ _SAMPLE_SIZE_TERMS = (
     r"\bobservations?\b",
     r"\brows?\b",
     r"\bn_counties\b",
-    r"\bhow\s+many\s+counties\b",
-    r"\bnumber\s+of\s+counties\b",
+    # Allow adjectives between "many"/"of" and "counties" (e.g. "Alabama counties").
+    r"\bhow\s+many\s+(?:\w+\s+){0,3}counties\b",
+    r"\bnumber\s+of\s+(?:\w+\s+){0,3}counties\b",
     r"\bcounty\s+count\b",
-    r"\bcounties\s+in\s+the\s+(?:study|analysis|dataset|data)\b",
+    r"\bcounties\s+in\s+the\s+(?:study|analysis|dataset|data|version)\b",
+    r"\balabama\s+counties\b",
     r"\bwhat(?:\s+is|\s*'?s)?\s+n\b",
     r"\bn\s*=\s*",
 )
+_PREDICTIVE_GAIN_TERMS = (
+    r"\bimprove\s+prediction\b",
+    r"\bpredictive\s+(?:value|gain|improvement)\b",
+    r"\badds?\s+predictive\b",
+    r"\bdid\s+(?:pm2\s*5|pm25)?\s*not\s+improve\b",
+    r"\badding\s+pm2\s*5\b",
+    r"\badding\s+pm25\b",
+    r"\bpm2\s*5\s+improve\b",
+    r"\bpm25\s+improve\b",
+)
+_OUTCOME_DEFINITION_TERMS = (
+    r"\bprevalence\b",
+    r"\bincidence\b",
+    r"\bexacerbat",
+)
 
-TRACT_PREFERRED = {
+# Ordered preferred passages (first match wins in answer ranking).
+TRACT_PREFERRED: tuple[tuple[str, str], ...] = (
     (
-        "projects/asthma-air-pollution/v1/README.md",
-        "Version 1: original Ironhack capstone > Reproducibility status",
+        "projects/asthma-air-pollution/STUDY_FAQ.md",
+        "Study FAQ (curated evidence snippets) > Sample size and geographic units",
     ),
     (
         "projects/asthma-air-pollution/v1/README_EXTENDED.md",
         "Version 1 retrospective correction > What I built in 2021",
+    ),
+    (
+        "projects/asthma-air-pollution/v1/README.md",
+        "Version 1: original Ironhack capstone > Reproducibility status",
     ),
     (
         "projects/asthma-air-pollution/v2/outputs/robustness_report.json",
@@ -81,30 +104,58 @@ TRACT_PREFERRED = {
         "projects/asthma-air-pollution/v2/VALIDATION.md",
         "Statistical validation and uncertainty > Version 1 comparison",
     ),
-}
+)
 
-NOT_PATIENTS_PREFERRED = {
+NOT_PATIENTS_PREFERRED: tuple[tuple[str, str], ...] = (
+    (
+        "projects/asthma-air-pollution/STUDY_FAQ.md",
+        "Study FAQ (curated evidence snippets) > Sample size and geographic units",
+    ),
     (
         "projects/asthma-air-pollution/v1/README_EXTENDED.md",
         "Version 1 retrospective correction > What I built in 2021",
     ),
     (
-        "projects/asthma-air-pollution/v1/README.md",
-        "Version 1: original Ironhack capstone > Reproducibility status",
-    ),
-    (
         "projects/asthma-air-pollution/v2/VALIDATION.md",
         "Statistical validation and uncertainty > Version 1 comparison",
     ),
+)
+
+PREDICTIVE_GAIN_PREFERRED: tuple[tuple[str, str], ...] = (
     (
-        "projects/asthma-air-pollution/README.md",
-        "Asthma prevalence and air pollution > Short glossary",
+        "projects/asthma-air-pollution/STUDY_FAQ.md",
+        "Study FAQ (curated evidence snippets) > Does PM2.5 improve prediction after health indicators?",
     ),
-}
+    (
+        "projects/asthma-air-pollution/v2/VALIDATION.md",
+        "Statistical validation and uncertainty > Adjusted association",
+    ),
+    (
+        "projects/asthma-air-pollution/v2/FEATURE_ANALYSIS.md",
+        "Feature analysis methods and caveats > Conclusion",
+    ),
+)
+
+OUTCOME_DEFINITIONS_PREFERRED: tuple[tuple[str, str], ...] = (
+    (
+        "projects/asthma-air-pollution/STUDY_FAQ.md",
+        "Study FAQ (curated evidence snippets) > Prevalence, incidence, and acute exacerbations",
+    ),
+    (
+        "projects/asthma-air-pollution/v2/VALIDATION.md",
+        "Statistical validation and uncertainty > Interpretation boundaries",
+    ),
+)
 
 
 def _matches_any(question: str, patterns: tuple[str, ...]) -> bool:
     return any(re.search(pattern, question) for pattern in patterns)
+
+
+def _ordered_preferred(chunks: list[Chunk], preferred: tuple[tuple[str, str], ...]) -> list[Chunk]:
+    """Return preferred passages in declared priority order."""
+    by_key = {(chunk.source, chunk.locator): chunk for chunk in chunks}
+    return [by_key[key] for key in preferred if key in by_key]
 
 
 def classify_structural_intent(question: str) -> StructuralIntent | None:
@@ -134,6 +185,20 @@ def classify_structural_intent(question: str) -> StructuralIntent | None:
     return None
 
 
+def classify_topic_intent(question: str) -> TopicIntent | None:
+    """Map FAQ-style interpretation questions onto curated topic passages."""
+    q = _normalise(question)
+    if not q:
+        return None
+    if _matches_any(q, _PREDICTIVE_GAIN_TERMS):
+        return "predictive_gain"
+    # Require at least two outcome vocabulary hits so metric questions stay unaffected.
+    outcome_hits = sum(1 for pattern in _OUTCOME_DEFINITION_TERMS if re.search(pattern, q))
+    if outcome_hits >= 2:
+        return "outcome_definitions"
+    return None
+
+
 def synonym_examples_for_intent(intent: StructuralIntent) -> tuple[str, ...]:
     """Documented examples used by tests and guardrail notes."""
     if intent == "n_counties":
@@ -143,6 +208,7 @@ def synonym_examples_for_intent(intent: StructuralIntent) -> tuple[str, ...]:
             "How many observations?",
             "How many rows?",
             "How many counties?",
+            "How many Alabama counties are in the Version 2 analysis?",
             "What is n?",
         )
     if intent == "tract_count":
@@ -229,19 +295,31 @@ def structural_preferred_chunks(question: str, chunks: list[Chunk]) -> list[Chun
     """Boost documented passages for tract-count and not-patient clarifications."""
     intent = classify_structural_intent(question)
     if intent == "tract_count":
-        preferred = TRACT_PREFERRED
-    elif intent == "not_patients":
-        preferred = NOT_PATIENTS_PREFERRED
-    else:
-        return []
-    return [chunk for chunk in chunks if (chunk.source, chunk.locator) in preferred]
+        return _ordered_preferred(chunks, TRACT_PREFERRED)
+    if intent == "not_patients":
+        return _ordered_preferred(chunks, NOT_PATIENTS_PREFERRED)
+    return []
+
+
+def topic_preferred_chunks(question: str, chunks: list[Chunk]) -> list[Chunk]:
+    """Boost curated FAQ / methods passages for common interpretation questions."""
+    intent = classify_topic_intent(question)
+    if intent == "predictive_gain":
+        return _ordered_preferred(chunks, PREDICTIVE_GAIN_PREFERRED)
+    if intent == "outcome_definitions":
+        return _ordered_preferred(chunks, OUTCOME_DEFINITIONS_PREFERRED)
+    return []
 
 
 def routed_evidence_chunks(question: str, chunks: list[Chunk]) -> list[Chunk]:
-    """Union of deterministic metric leaves and structural preferred passages."""
+    """Union of deterministic metric leaves and structural/topic preferred passages."""
     seen: set[tuple[str, str]] = set()
     ordered: list[Chunk] = []
-    for chunk in exact_metric_chunks(question, chunks) + structural_preferred_chunks(question, chunks):
+    for chunk in (
+        exact_metric_chunks(question, chunks)
+        + structural_preferred_chunks(question, chunks)
+        + topic_preferred_chunks(question, chunks)
+    ):
         key = (chunk.source, chunk.locator)
         if key in seen:
             continue
