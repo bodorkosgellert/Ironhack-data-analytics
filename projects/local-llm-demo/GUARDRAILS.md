@@ -15,7 +15,7 @@ answer that exists in the corpus) and **hallucination** (fluent but unsupported 
 | **L4** | Geography / out-of-scope topic refusals | **Implemented** (geography) | Unsupported US-state geography questions refuse before generation (e.g. California effect size). Broader topic ontology is only partial via L2. |
 | **L5** | Conflict suppression | **Implemented** | When metric facts are routed, generated narration that invents other numbers is dropped; the JSON value remains authoritative. |
 | **L6** | Optional hosted LLM with secrets | **Implemented** (optional) | Hosted OpenAI-compatible chat only via secrets; never commit keys. Suitable for this **public** corpus only — do not send confidential data. |
-| **L7** | Human review / IRB patterns | **Future** | Required if the corpus ever included real patient-level or IRB-bound records: access control, audit, retention, and human sign-off. Not claimed for this public PLACES demo. |
+| **L7** | Human review / IRB patterns | **Future** | Required if the corpus ever included real patient-level or IRB-bound records: access control, audit, retention, and human sign-off. Not claimed for this public PLACES demo. See the [README confidential-health section](README.md#local-inference-and-confidential-health-data) for published asthma mHealth examples that motivate local or privately hosted inference when personal tracking density is high. |
 
 ## Tradeoffs
 

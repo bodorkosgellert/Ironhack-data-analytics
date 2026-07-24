@@ -16,7 +16,7 @@ Version 1 is my original bootcamp work. I developed the 2026 restructuring, Vers
 - [Literature and study-design comparison](LITERATURE.md)
 - [Evidence assistant source](../local-llm-demo/) (separate Streamlit app; not embedded in the dashboard)
 
-The Version 2 epidemiology dashboard and the evidence assistant are different applications. Open the live links above, or launch locally: `streamlit run streamlit_app.py` from `v2/` for charts, and from `projects/local-llm-demo` for Q&A (start Ollama if you want local narration). See the [assistant README](../local-llm-demo/README.md) for hybrid retrieval, Streamlit Cloud limits, and the honest privacy framing for future confidential corpora.
+The Version 2 epidemiology dashboard and the evidence assistant are different applications. Open the live links above, or launch locally: `streamlit run streamlit_app.py` from `v2/` for charts, and from `projects/local-llm-demo` for Q&A (start Ollama if you want local narration). See the [assistant README](../local-llm-demo/README.md) for hybrid retrieval, Streamlit Cloud limits, and the honest privacy framing for future confidential corpora (including cited examples of denser personal asthma-tracking studies that motivate local inference).
 
 ## Result summary
 

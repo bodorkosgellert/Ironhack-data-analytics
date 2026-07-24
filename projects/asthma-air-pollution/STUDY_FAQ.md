@@ -20,6 +20,10 @@ This is an **ecological**, cross-sectional county study. County associations can
 
 Chronic asthma **prevalence**, asthma **incidence**, and acute **exacerbations** are distinct outcomes. Version 2 uses current adult asthma prevalence from CDC PLACES. It does not measure incidence or daily acute exacerbations. Short-term PM2.5 spikes are better studied with daily outcomes and lagged exposure designs.
 
+## Why local models matter for denser asthma data
+
+Version 2 uses **public county aggregates**, not patient tracking. Many other asthma studies collect denser personal streams (symptoms, devices, location, diaries). Those corpora motivate keeping retrieval and optional narration **local or inside a private network**. See the evidence assistant note with example citations: [Local inference and confidential health data](../local-llm-demo/README.md#local-inference-and-confidential-health-data).
+
 ## Key stored metrics (Alabama 2023)
 
 - Pearson correlation PM2.5 × asthma: about −0.057 (exact leaf in `v2/outputs/metrics.json`).

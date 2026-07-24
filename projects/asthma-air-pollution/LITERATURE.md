@@ -46,6 +46,16 @@ Centers for Disease Control and Prevention (CDC) PLACES estimates are model-base
 
 Evidence that obesity is related to asthma does not turn the Version 2 obesity correlation into a causal estimate. My study lacks the individual and temporal information needed for that inference.
 
+## Individual-level and tracked asthma data (privacy context)
+
+These examples are **not** part of my Version 2 county analysis. They show how denser asthma research often involves person-linked surveys, devices, location, or diaries—the kind of corpus where a **local or privately hosted** evidence assistant is more appropriate than sending raw passages to a public hosted chatbot. Full citations and the architectural argument live in the [evidence assistant README](../local-llm-demo/README.md#local-inference-and-confidential-health-data).
+
+15. **Chan YY, et al.** (2017). The Asthma Mobile Health Study, a large-scale clinical observational study using ResearchKit. *Nature Biotechnology*. https://pubmed.ncbi.nlm.nih.gov/28288104/
+
+16. **Chan YY, et al.** (2018). The asthma mobile health study, smartphone data collected using ResearchKit. *Scientific Data*. https://doi.org/10.1038/sdata.2018.96
+
+17. **AirPredict / related digital asthma–air quality platforms** (wearables, diaries, personal PM exposure; GDPR-oriented controls described by the authors). Example: https://www.frontiersin.org/journals/digital-health/articles/10.3389/fdgth.2025.1573342/full
+
 ## Design comparison
 
 | Aspect | Individual or cohort study | Version 2 |
